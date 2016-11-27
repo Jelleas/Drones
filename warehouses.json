@@ -1,0 +1,12 @@
+{
+	"amstel" : 
+	{
+		"position" : [2,1], 
+		"packages" : [["treinset", 3], ["hamer", 2], ["starwarslego", 4]]
+	},
+	"bijlmer" :
+	{
+		"position" : [9,5],
+		"packages" : [["hamer", 2]]
+	}
+}

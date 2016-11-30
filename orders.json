@@ -1,3 +1,4 @@
 {
-	"jan" : {"position" : [0,0], "packages" : ["treinset"]}
+	"jan" : {"position" : [0,0], "packages" : ["treinset"]},
+	"pim" : {"position" : [7,7], "packages" : ["hamer"]}
 }

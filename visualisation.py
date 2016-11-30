@@ -1,6 +1,7 @@
 import Tkinter as tk
 import multiprocessing
 import dill
+import time
 
 _process = None
 
@@ -16,6 +17,7 @@ def visualize(grid):
 		_process = _Process(runner)
 
 	_process.send(grid)
+	time.sleep(0.1) # TODO: hacky?
 
 class _Process(object):
 	def __init__(self, runner):
@@ -41,7 +43,7 @@ class _GUI(tk.Frame):
 	def _poll(self):
 		if not self.queue.empty():
 			self._draw()
-		self.after(100, self._poll)
+		self.after(1000, self._poll)
 
 	def _draw(self):
 		if self.field:
@@ -65,7 +67,6 @@ class _GUI(tk.Frame):
 				self._drawDroneAt(grid.dronesAt(pos)[0], pos)
 
 		self.field.grid()
-
 
 	def _drawWarehouseAt(self, warehouse, pos):
 		size = self.cellSize / 2

@@ -3,6 +3,7 @@ import json
 import visualisation
 import dill
 import time
+import random
 
 class OutOfStockError(Exception):
 	pass
@@ -103,6 +104,8 @@ class Warehouse(object):
 	def __repr__(self):
 		return str(self)
 
+	def __contains__(self, item):
+		return item in self._content
 
 class Grid(object):
 	def __init__(self, width, height):
@@ -193,22 +196,41 @@ class Simulation(object):
 
 		self.timelimit = timelimit
 
-
 	def display(self):
 		self.grid.display()
 
 	def flyDroneTo(self, drone, pos):
 		self.grid.unplace(drone)
-		drone.flyTo(pos)
+		cost = drone.flyTo(pos)
 		self.grid.placeDrone(drone, drone.position)
+		return cost
+
+	def warehousesContaining(self, package):
+		return [wh for wh in self.warehouses if package in wh]
+
+	def getRandomOrder(self):
+		return self.orders.randomOrder
+
+	def claimOrder(self, order):
+		self.orders.remove(order)
 
 class _OrderManager(object):
 	def __init__(self, orders):
-		self._orders = orders
+		self._orders = list(orders)
+
+	@property
+	def randomOrder(self):
+		return random.choice(self._orders)
+
+	def remove(self, order):
+		self._orders.remove(order)
 
 	def __iter__(self):
 		for order in self._orders:
 			yield order
+
+	def __nonzero__(self):
+		return len(self._orders) > 0
 
 def loadSimulation():
 	warehouses = []
@@ -235,12 +257,28 @@ def loadSimulation():
 	
 	return Simulation(grid, warehouses, orders, drones, timelimit)
 
+def randomSolve(simulation):
+	cost = 0
+	while simulation.orders:
+		drone = random.choice(simulation.drones)
+
+		order = simulation.getRandomOrder()
+		simulation.claimOrder(order)
+
+		warehouse = random.choice(simulation.warehousesContaining(order.package))
+		
+		cost += simulation.flyDroneTo(drone, warehouse.position)
+		visualisation.visualize(simulation.grid)
+		cost += simulation.flyDroneTo(drone, order.customer.position)
+		visualisation.visualize(simulation.grid)
+				
+	return cost
+
 if __name__ == "__main__":
 	simulation = loadSimulation()
 	simulation.display()
-
-	visualisation.visualize(simulation.grid)
-	time.sleep(1)
-	simulation.flyDroneTo(simulation.drones[0], Position(5,5))
 	visualisation.visualize(simulation.grid)
 	
+	cost = randomSolve(simulation)
+
+	print "Total cost : {}".format(cost)

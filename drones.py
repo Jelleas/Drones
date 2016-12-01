@@ -68,12 +68,12 @@ class Package(object):
 
 
 class Order(object):
-	def __init__(self, customer, package):
+	def __init__(self, customer, packages):
 		self.customer = customer
-		self.package = package
+		self.packages = packages
 
 	def __str__(self):
-		return "ORDER [{} : {}]".format(self.customer, self.package)
+		return "ORDER [{} : {}]".format(self.customer, self.packages)
 
 	def __repr__(self):
 		return str(self)
@@ -83,7 +83,7 @@ class Warehouse(object):
 	def __init__(self, name, pos, packages):
 		self.name = name
 		self.position = pos
-		packages = list(packages)
+		packages = packages
 		self._content = {package : packages.count(package) for package in set(packages)}
 
 	def retrieve(self, package):
@@ -134,7 +134,6 @@ class Grid(object):
 
 	def customersAt(self, pos):
 		return self._grid[pos.x][pos.y].customers
-
 
 	def unplace(self, item):
 		pos = self._items[item]
@@ -190,47 +189,63 @@ class Simulation(object):
 			if order.customer not in self.grid.customersAt(order.customer.position):
 				self.grid.placeCustomer(order.customer, order.customer.position)
 
-		self.drones = drones
-		for drone in self.drones:
+		self._drones = {drone : 0 for drone in drones}
+		for drone in self._drones:
 			self.grid.placeDrone(drone, drone.position)
 
 		self.timelimit = timelimit
 
-	def display(self):
-		self.grid.display()
+	@property
+	def drones(self):
+		return self._drones.keys()
+
+	@property
+	def cost(self):
+		return max(self._drones.values())
+
+	def droneCost(self, drone):
+		return self._drones[drone]
 
 	def flyDroneTo(self, drone, pos):
 		self.grid.unplace(drone)
-		cost = drone.flyTo(pos)
+		self._drones[drone] += drone.flyTo(pos)
 		self.grid.placeDrone(drone, drone.position)
-		return cost
 
 	def warehousesContaining(self, package):
 		return [wh for wh in self.warehouses if package in wh]
 
-	def getRandomOrder(self):
-		return self.orders.randomOrder
-
 	def claimOrder(self, order):
 		self.orders.remove(order)
+
+	def completeOrder(self, order):
+		if not self.orders.hasCustomer(order.customer):
+			self.grid.unplace(order.customer)
+
+	def display(self):
+		self.grid.display()
 
 class _OrderManager(object):
 	def __init__(self, orders):
 		self._orders = list(orders)
 
-	@property
-	def randomOrder(self):
-		return random.choice(self._orders)
-
 	def remove(self, order):
 		self._orders.remove(order)
+
+	def hasCustomer(self, customer):
+		return any(order.customer == customer for order in self)
+
+	def __getitem__(self, index):
+		return self._orders[index]
+
+	def __len__(self):
+		return len(self._orders)
 
 	def __iter__(self):
 		for order in self._orders:
 			yield order
 
 	def __nonzero__(self):
-		return len(self._orders) > 0
+		return len(self) > 0
 
 def loadSimulation():
 	warehouses = []
@@ -247,7 +262,7 @@ def loadSimulation():
 		for customerName in content:
 			customer = Customer(customerName, Position(*content[customerName]["position"]))
 			packages = [Package(packageName) for packageName in content[customerName]["packages"]]
-			orders.extend(Order(customer, package) for package in packages)
+			orders.append(Order(customer, packages))
 
 	with open("settings.json") as settingsFile:
 		content = json.loads(settingsFile.read())
@@ -257,28 +272,41 @@ def loadSimulation():
 	
 	return Simulation(grid, warehouses, orders, drones, timelimit)
 
-def randomSolve(simulation):
-	cost = 0
+def randomSolve(simulation, visualize = lambda grid : None):
 	while simulation.orders:
 		drone = random.choice(simulation.drones)
-
-		order = simulation.getRandomOrder()
+		order = random.choice(simulation.orders)
 		simulation.claimOrder(order)
-
-		warehouse = random.choice(simulation.warehousesContaining(order.package))
 		
-		cost += simulation.flyDroneTo(drone, warehouse.position)
-		visualisation.visualize(simulation.grid)
-		cost += simulation.flyDroneTo(drone, order.customer.position)
-		visualisation.visualize(simulation.grid)
-				
-	return cost
+		for package in order.packages:
+			warehouse = random.choice(simulation.warehousesContaining(package))
+			
+			simulation.flyDroneTo(drone, warehouse.position)
+			visualize(simulation.grid)
+			simulation.flyDroneTo(drone, order.customer.position)
+			visualize(simulation.grid)
+	
+def greedySolve(simulation, visualize = lambda grid : None):
+	while simulation.orders:
+		drone = random.choice(simulation.drones)
+		order = random.choice(simulation.orders)
+		simulation.claimOrder(order)
+		
+		for package in order.packages:
+			warehouse = min(simulation.warehousesContaining(package), key = lambda wh : drone.distanceTo(wh.position))
+			
+			simulation.flyDroneTo(drone, warehouse.position)
+			warehouse.retrieve(package)
+			visualize(simulation.grid)
+			simulation.flyDroneTo(drone, order.customer.position)
+			visualize(simulation.grid)
+
+		simulation.completeOrder(order)
 
 if __name__ == "__main__":
 	simulation = loadSimulation()
 	simulation.display()
 	visualisation.visualize(simulation.grid)
 	
-	cost = randomSolve(simulation)
-
-	print "Total cost : {}".format(cost)
+	greedySolve(simulation, visualize = visualisation.visualize)
+	print "Total cost : {}".format(simulation.cost)
